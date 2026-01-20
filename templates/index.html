@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forex AI Signal Generator - Twelve Data API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Base styles */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Header */
+        .header { text-align: center; padding: 30px 20px; margin-bottom: 30px; }
+        .header h1 { font-size: 2.8rem; background: linear-gradient(90deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+        .header p { color: #94a3b8; font-size: 1.1rem; max-width: 600px; margin: 0 auto 20px; }
+        
+        /* API Status */
+        .api-status { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+        .status-card { background: rgba(30, 41, 59, 0.9); padding: 15px 20px; border-radius: 10px; flex: 1; min-width: 200px; border: 1px solid rgba(100, 116, 139, 0.4); }
+        .status-card.api-active { border-left: 4px solid #10b981; }
+        .status-card.api-fallback { border-left: 4px solid #f59e0b; }
+        .status-label { color: #94a3b8; font-size: 0.9rem; margin-bottom: 5px; }
+        .status-value { font-size: 1.2rem; font-weight: 600; }
+        .status-value.active { color: #10b981; }
+        .status-value.fallback { color: #f59e0b; }
+        .api-key { font-family: monospace; background: rgba(15, 23, 42, 0.6); padding: 5px 10px; border-radius: 5px; font-size: 0.9rem; color: #60a5fa; }
+        
+        /* Dashboard */
+        .dashboard { display: grid; grid-template-columns: 350px 1fr; gap: 30px; margin-bottom: 40px; }
+        @media (max-width: 1024px) { .dashboard { grid-template-columns: 1fr; } }
+        
+        /* Control Panel */
+        .control-panel { background: rgba(30, 41, 59, 0.9); padding: 25px; border-radius: 15px; border: 1px solid rgba(100, 116, 139, 0.4); }
+        .control-group { margin-bottom: 20px; }
+        .control-group label { display: block; color: #cbd5e1; margin-bottom: 8px; font-weight: 500; }
+        select, input { width: 100%; padding: 12px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(100, 116, 139, 0.5); border-radius: 8px; color: #f1f5f9; font-size: 1rem; }
+        select:focus, input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+        .btn { width: 100%; padding: 14px; background: linear-gradient(90deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
+        .btn-secondary { background: linear-gradient(90deg, #64748b, #475569); }
+        
+        /* Signal Display */
+        .signal-display { background: rgba(30, 41, 59, 0.9); padding: 30px; border-radius: 15px; border: 1px solid rgba(100, 116, 139, 0.4); min-height: 500px; }
+        .signal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; }
+        .pair-info { display: flex; align-items: center; gap: 15px; }
+        .pair-icon { width: 60px; height: 60px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
+        .pair-details h2 { font-size: 1.8rem; margin-bottom: 5px; }
+        .pair-details .meta { color: #94a3b8; font-size: 0.9rem; }
+        .signal-badge { padding: 12px 25px; border-radius: 50px; font-size: 1.2rem; font-weight: 800; letter-spacing: 1px; }
+        .signal-buy { background: linear-gradient(135deg, #10b981, #059669); }
+        .signal-sell { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .signal-hold { background: linear-gradient(135deg, #64748b, #475569); }
+        
+        /* Confidence Meter */
+        .confidence-meter { margin: 25px 0; }
+        .meter-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .meter-bar { height: 12px; background: rgba(100, 116, 139, 0.3); border-radius: 6px; overflow: hidden; }
+        .meter-fill { height: 100%; border-radius: 6px; transition: width 1s ease; }
+        .high-confidence { background: linear-gradient(90deg, #10b981, #34d399); }
+        .medium-confidence { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .low-confidence { background: linear-gradient(90deg, #ef4444, #f87171); }
+        
+        /* Details Grid */
+        .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 25px 0; }
+        .detail-card { background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 10px; border: 1px solid rgba(100, 116, 139, 0.2); }
+        .detail-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 5px; }
+        .detail-value { font-size: 1.5rem; font-weight: 700; }
+        
+        /* Patterns */
+        .patterns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 20px; }
+        .pattern-card { padding: 12px; border-radius: 8px; text-align: center; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(100, 116, 139, 0.2); }
+        .pattern-detected { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+        
+        /* Quick Signals */
+        .quick-signals { margin-top: 40px; }
+        .signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .signal-card { background: rgba(30, 41, 59, 0.8); padding: 20px; border-radius: 12px; border: 1px solid rgba(100, 116, 139, 0.3); transition: transform 0.3s; cursor: pointer; }
+        .signal-card:hover { transform: translateY(-5px); border-color: #3b82f6; }
+        .signal-card.buy { border-left: 4px solid #10b981; }
+        .signal-card.sell { border-left: 4px solid #ef4444; }
+        .signal-card.hold { border-left: 4px solid #64748b; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .card-pair { font-weight: 700; font-size: 1.1rem; }
+        .card-tf { color: #94a3b8; font-size: 0.8rem; }
+        .card-signal { font-size: 1.4rem; font-weight: 700; margin: 10px 0; }
+        .card-buy { color: #10b981; }
+        .card-sell { color: #ef4444; }
+        .card-hold { color: #94a3b8; }
+        
+        /* Loader */
+        .loader { text-align: center; padding: 40px; }
+        .spinner { width: 50px; height: 50px; border: 4px solid rgba(59, 130, 246, 0.3); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Alert */
+        .alert { position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 8px; background: rgba(30, 41, 59, 0.95); border-left: 4px solid; display: none; z-index: 1000; max-width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .alert-success { border-color: #10b981; color: #10b981; }
+        .alert-error { border-color: #ef4444; color: #ef4444; }
+        .alert-info { border-color: #3b82f6; color: #3b82f6; }
+        
+        /* Footer */
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(100, 116, 139, 0.3); color: #94a3b8; font-size: 0.9rem; }
+        .footer small { display: block; margin-top: 10px; font-size: 0.8rem; color: #64748b; }
+        
+        /* Animation */
+        .fade-in { animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Alert -->
+        <div id="alertBox" class="alert"></div>
+        
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-chart-line"></i> Forex AI Signal Generator</h1>
+            <p>Powered by Twelve Data API • Fixed 7 SL / 10 TP Risk Management</p>
+            
+            <!-- API Status -->
+            <div class="api-status">
+                <div class="status-card api-active" id="apiStatusCard">
+                    <div class="status-label">API Status</div>
+                    <div class="status-value active" id="apiStatus">Checking...</div>
+                    <div class="api-key" id="apiKey">Key: fe6aec0e85...</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">Risk Parameters</div>
+                    <div class="status-value">7 SL / 10 TP</div>
+                    <div style="font-size: 0.9rem; color: #94a3b8;">1:1.43 Risk/Reward</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">Data Source</div>
+                    <div class="status-value" id="dataSource">Loading...</div>
+                    <div style="font-size: 0.9rem; color: #94a3b8;" id="dataStatus"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Dashboard -->
+        <div class="dashboard">
+            <!-- Control Panel -->
+            <div class="control-panel fade-in">
+                <h2 style="margin-bottom: 20px; color: #f1f5f9;"><i class="fas fa-sliders-h"></i> Controls</h2>
+                
+                <div class="control-group">
+                    <label for="pairSelect"><i class="fas fa-money-bill-wave"></i> Currency Pair</label>
+                    <select id="pairSelect">
+                        <option value="EURUSD">EUR/USD - Euro vs US Dollar</option>
+                        <option value="GBPUSD">GBP/USD - British Pound vs US Dollar</option>
+                        <option value="USDJPY">USD/JPY - US Dollar vs Japanese Yen</option>
+                        <option value="AUDUSD">AUD/USD - Australian Dollar vs US Dollar</option>
+                        <option value="USDCAD">USD/CAD - US Dollar vs Canadian Dollar</option>
+                        <option value="USDCHF">USD/CHF - US Dollar vs Swiss Franc</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="timeframeSelect"><i class="fas fa-clock"></i> Timeframe</label>
+                    <select id="timeframeSelect">
+                        <option value="5min">5 Minutes - Quick Scalping</option>
+                        <option value="15min" selected>15 Minutes - Rapid Trading</option>
+                        <option value="30min">30 Minutes - Short-term</option>
+                        <option value="1h">1 Hour - Intraday</option>
+                        <option value="4h">4 Hours - Swing Trading</option>
+                        <option value="1day">1 Day - Position Trading</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="analysisMode"><i class="fas fa-bolt"></i> Analysis Mode</label>
+                    <select id="analysisMode">
+                        <option value="standard">Standard Analysis</option>
+                        <option value="quick" selected>Quick Trade Mode</option>
+                    </select>
+                </div>
+                
+                <button class="btn" onclick="generateSignal()">
+                    <i class="fas fa-bolt"></i> Generate Signal
+                </button>
+                
+                <button class="btn btn-secondary" onclick="loadQuickSignals()">
+                    <i class="fas fa-sync-alt"></i> Refresh Quick Signals
+                </button>
+                
+                <button class="btn btn-secondary" onclick="testAPI()" style="margin-top: 15px;">
+                    <i class="fas fa-wifi"></i> Test API Connection
+                </button>
+            </div>
+            
+            <!-- Signal Display -->
+            <div class="signal-display fade-in">
+                <div class="loader" id="loader">
+                    <div class="spinner"></div>
+                    <p>Select a currency pair and timeframe to generate signal</p>
+                </div>
+                
+                <div id="signalContent" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <!-- Quick Signals -->
+        <div class="quick-signals fade-in">
+            <h2 style="margin-bottom: 20px; color: #f1f5f9;">
+                <i class="fas fa-fire"></i> Quick Trade Signals
+                <button onclick="loadQuickSignals()" style="background: none; border: 1px solid #3b82f6; color: #3b82f6; padding: 5px 15px; border-radius: 5px; margin-left: 15px; font-size: 0.9rem; cursor: pointer;">
+                    <i class="fas fa-redo"></i> Refresh
+                </button>
+            </h2>
+            <div class="signals-grid" id="quickSignals">
+                <!-- Quick signals will load here -->
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>Forex AI Signal Generator v2.0 • Twelve Data API Integration</p>
+            <p>Fixed Risk Management: 7 Stop Loss / 10 Take Profit (1:1.43 Risk/Reward Ratio)</p>
+            <small>
+                <i class="fas fa-exclamation-triangle"></i> For educational purposes only. Trading involves risk.
+                <br>API Key: fe6aec0e85244251ab5cb28263f98bd6
+            </small>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let apiStatus = 'checking';
+        let dataSource = 'unknown';
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAPIStatus();
+            loadQuickSignals();
+        });
+        
+        // Alert functions
+        function showAlert(message, type = 'info') {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.textContent = message;
+            alertBox.className = `alert alert-${type}`;
+            alertBox.style.display = 'block';
+            
+            setTimeout(() => {
+                alertBox.style.display = 'none';
+            }, 4000);
+        }
+        
+        // Check API status
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch('/api/test');
+                const data = await response.json();
+                
+                if (data.api_test.success) {
+                    apiStatus = 'active';
+                    document.getElementById('apiStatus').textContent = '✅ Active';
+                    document.getElementById('apiStatus').className = 'status-value active';
+                    document.getElementById('apiStatusCard').className = 'status-card api-active';
+                    document.getElementById('dataSource').textContent = 'Twelve Data API';
+                    document.getElementById('dataStatus').textContent = `Latest: ${data.api_test.latest_price || 'N/A'}`;
+                    showAlert('Twelve Data API is connected successfully!', 'success');
+                } else {
+                    apiStatus = 'fallback';
+                    document.getElementById('apiStatus').textContent = '⚠ Using Fallback';
+                    document.getElementById('apiStatus').className = 'status-value fallback';
+                    document.getElementById('apiStatusCard').className = 'status-card api-fallback';
+                    document.getElementById('dataSource').textContent = 'Synthetic Data';
+                    document.getElementById('dataStatus').textContent = 'API unavailable, using realistic simulation';
+                    showAlert('Using synthetic data (API unavailable)', 'info');
+                }
+            } catch (error) {
+                apiStatus = 'error';
+                document.getElementById('apiStatus').textContent = '❌ Error';
+                document.getElementById('dataSource').textContent = 'Unknown';
+            }
+        }
+        
+        // Test API connection
+        async function testAPI() {
+            document.getElementById('apiStatus').textContent = 'Testing...';
+            
+            try {
+                const response = await fetch('/api/test');
+                const data = await response.json();
+                
+                if (data.api_test.success) {
+                    showAlert(`✅ API Connected! Latest EURUSD: ${data.api_test.latest_price || 'N/A'}`, 'success');
+                    checkAPIStatus(); // Refresh status
+                } else {
+                    showAlert('⚠ API Connection Failed - Using synthetic data', 'info');
+                    checkAPIStatus();
+                }
+            } catch (error) {
+                showAlert('❌ API Test Failed: ' + error.message, 'error');
+                checkAPIStatus();
+            }
+        }
+        
+        // Generate signal
+        async function generateSignal() {
+            const pair = document.getElementById('pairSelect').value;
+            const timeframe = document.getElementById('timeframeSelect').value;
+            const mode = document.getElementById('analysisMode').value;
+            
+            // Show loader
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('signalContent').style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/signal/${pair}/${timeframe}?mode=${mode}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySignal(data.data);
+                    showAlert(`Signal generated for ${pair} (${timeframe})`, 'success');
+                    
+                    // Update data source display
+                    if (data.data.data_source) {
+                        document.getElementById('dataSource').textContent = data.data.data_source;
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to generate signal');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Failed to generate signal. Using demo data.', 'error');
+                displayDemoSignal(pair, timeframe);
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+            }
+        }
+        
+        // Display signal
+        function displaySignal(signal) {
+            const content = document.getElementById('signalContent');
+            const signalClass = `signal-${signal.signal.toLowerCase()}`;
+            const confidence = signal.confidence;
+            
+            // Meter class
+            let meterClass = 'low-confidence';
+            if (confidence >= 70) meterClass = 'high-confidence';
+            else if (confidence >= 50) meterClass = 'medium-confidence';
+            
+            // Pattern cards
+            let patternsHTML = '';
+            if (signal.patterns) {
+                for (const [pattern, detected] of Object.entries(signal.patterns)) {
+                    const patternClass = detected ? 'pattern-detected' : '';
+                    const patternName = pattern.replace(/_/g, ' ').toUpperCase();
+                    
+                    patternsHTML += `
+                        <div class="pattern-card ${patternClass}">
+                            <div style="font-weight: 600; margin-bottom: 5px;">${patternName}</div>
+                            <div style="font-size: 0.85rem; color: ${detected ? '#10b981' : '#94a3b8'}">
+                                ${detected ? '✓ Detected' : '✗ Not detected'}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Build HTML
+            content.innerHTML = `
+                <div class="signal-header">
+                    <div class="pair-info">
+                        <div class="pair-icon">${signal.symbol.substring(0, 3)}</div>
+                        <div class="pair-details">
+                            <h2>${signal.symbol}</h2>
+                            <div class="meta">
+                                ${signal.timeframe} • ${signal.quick_mode ? 'Quick Trade' : 'Standard'} • 
+                                ${signal.data_source || 'Twelve Data API'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="signal-badge ${signalClass}">${signal.signal}</div>
+                </div>
+                
+                <div class="confidence-meter">
+                    <div class="meter-header">
+                        <span>Confidence Level</span>
+                        <span><strong>${confidence}%</strong></span>
+                    </div>
+                    <div class="meter-bar">
+                        <div class="meter-fill ${meterClass}" style="width: ${confidence}%"></div>
+                    </div>
+                </div>
+                
+                <p style="margin: 20px 0; color: #cbd5e1; line-height: 1.6;">
+                    <i class="fas fa-lightbulb" style="color: #f59e0b;"></i>
+                    ${signal.reason}
+                </p>
+                
+                <div class="details-grid">
+                    <div class="detail-card">
+                        <div class="detail-label">Current Price</div>
+                        <div class="detail-value">${signal.current_price.toFixed(5)}</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Signal Score</div>
+                        <div class="detail-value">${signal.score}</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Stop Loss</div>
+                        <div class="detail-value">${signal.pip_targets.sl_pips} pips</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Take Profit</div>
+                        <div class="detail-value">${signal.pip_targets.tp_pips} pips</div>
+                    </div>
+                </div>
+                
+                ${patternsHTML ? `
+                <div style="margin-top: 25px;">
+                    <h3 style="margin-bottom: 15px; color: #f1f5f9;">
+                        <i class="fas fa-chart-bar"></i> Pattern Detection
+                    </h3>
+                    <div class="patterns-grid">
+                        ${patternsHTML}
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div style="margin-top: 25px; padding: 20px; background: rgba(15, 23, 42, 0.6); border-radius: 10px;">
+                    <h4 style="margin-bottom: 10px; color: #f1f5f9;">Trading Recommendations</h4>
+                    <p style="color: #cbd5e1; font-size: 0.95rem;">
+                        • <strong>Entry:</strong> ${signal.current_price.toFixed(5)}<br>
+                        • <strong>Stop Loss:</strong> ${signal.pip_targets.sl_pips} pips<br>
+                        • <strong>Take Profit:</strong> ${signal.pip_targets.tp_pips} pips<br>
+                        • <strong>Hold Period:</strong> ${signal.hold_period || '15-30 minutes'}<br>
+                        • <strong>Risk/Reward:</strong> 1:${signal.pip_targets.risk_reward?.toFixed(2) || '1.43'}<br>
+                        • <strong>Data Source:</strong> ${signal.data_source || 'Twelve Data API'}
+                    </p>
+                </div>
+            `;
+            
+            content.style.display = 'block';
+            content.classList.add('fade-in');
+        }
+        
+        // Demo signal for fallback
+        function displayDemoSignal(pair, timeframe) {
+            const demoSignal = {
+                symbol: pair,
+                timeframe: timeframe,
+                signal: Math.random() > 0.6 ? 'BUY' : Math.random() > 0.6 ? 'SELL' : 'HOLD',
+                confidence: Math.floor(Math.random() * 30) + 60,
+                score: Math.floor(Math.random() * 10) - 2,
+                reason: 'Demo analysis based on recent price action and volatility patterns.',
+                patterns: {
+                    'three_line_strike': Math.random() > 0.7,
+                    'double_top': Math.random() > 0.8,
+                    'double_bottom': Math.random() > 0.7,
+                    'hammer': Math.random() > 0.6
+                },
+                current_price: parseFloat((1.1 + Math.random() * 0.1).toFixed(5)),
+                pip_targets: {
+                    sl_pips: 7,
+                    tp_pips: 10,
+                    risk_reward: 1.43,
+                    hold_period: '15-30 minutes'
+                },
+                data_source: 'Demo Data',
+                hold_period: '15-30 minutes'
+            };
+            
+            displaySignal(demoSignal);
+        }
+        
+        // Load quick signals
+        async function loadQuickSignals() {
+            const container = document.getElementById('quickSignals');
+            container.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 30px;">
+                    <div class="spinner" style="width: 30px; height: 30px;"></div>
+                    <p style="color: #94a3b8; margin-top: 10px;">Loading quick signals...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/api/signals/quick?count=6');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayQuickSignals(data.signals);
+                    showAlert(`Loaded ${data.signals.length} quick signals`, 'success');
+                } else {
+                    throw new Error('Failed to load signals');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                displayDemoQuickSignals();
+                showAlert('Using demo quick signals', 'info');
+            }
+        }
+        
+        // Display quick signals
+        function displayQuickSignals(signals) {
+            const container = document.getElementById('quickSignals');
+            
+            if (!signals || signals.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #94a3b8;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                        <p>No quick signals available</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            signals.forEach(signal => {
+                const cardClass = `signal-card ${signal.signal.toLowerCase()}`;
+                const signalColor = signal.signal === 'BUY' ? '#10b981' : signal.signal === 'SELL' ? '#ef4444' : '#94a3b8';
+                
+                html += `
+                    <div class="${cardClass}" onclick="loadSignalCard('${signal.symbol}', '${signal.timeframe}')">
+                        <div class="card-header">
+                            <div class="card-pair">${signal.symbol}</div>
+                            <div class="card-tf">${signal.timeframe}</div>
+                        </div>
+                        <div class="card-signal" style="color: ${signalColor}">
+                            ${signal.signal} (${signal.confidence}%)
+                        </div>
+                        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 10px;">
+                            ${signal.reason.substring(0, 60)}...
+                        </p>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #cbd5e1;">
+                            <span>SL: ${signal.pip_targets.sl_pips}p</span>
+                            <span>TP: ${signal.pip_targets.tp_pips}p</span>
+                            <span>RR: 1:${signal.pip_targets.risk_reward?.toFixed(2) || '1.43'}</span>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.75rem; color: #64748b;">
+                            ${signal.data_source || 'API'}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // Demo quick signals
+        function displayDemoQuickSignals() {
+            const pairs = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD'];
+            const timeframes = ['5min', '15min', '30min'];
+            
+            const demoSignals = pairs.map(pair => {
+                const tf = timeframes[Math.floor(Math.random() * timeframes.length)];
+                const signal = Math.random() > 0.6 ? 'BUY' : Math.random() > 0.6 ? 'SELL' : 'HOLD';
+                
+                return {
+                    symbol: pair,
+                    timeframe: tf,
+                    signal: signal,
+                    confidence: Math.floor(Math.random() * 30) + 60,
+                    reason: 'Pattern analysis shows potential ' + signal.toLowerCase() + ' opportunity',
+                    pip_targets: { sl_pips: 7, tp_pips: 10, risk_reward: 1.43 },
+                    data_source: 'Demo'
+                };
+            });
+            
+            displayQuickSignals(demoSignals);
+        }
+        
+        // Load signal from card click
+        function loadSignalCard(symbol, timeframe) {
+            document.getElementById('pairSelect').value = symbol;
+            document.getElementById('timeframeSelect').value = timeframe;
+            generateSignal();
+        }
+    </script>
+</body>
+</html>
